@@ -1,0 +1,76 @@
+
+import streamlit as st
+import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+
+st.set_page_config(page_title="Customer Segmentation", layout="centered")
+st.title("Customer Segmentation ")
+
+st.sidebar.header("Upload & Settings")
+
+# 1. Data input
+uploaded_file = st.sidebar.file_uploader("Upload customer CSV (e.g., Mall_Customers.csv)", type=["csv","xlsx","TSV"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.subheader("DATA SET")
+    st.dataframe(df.head())
+
+# 2. Feature selection
+    numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
+    if len(numeric_cols) < 2:
+        st.error("Need at least 2 numeric columns for clustering.")
+        st.stop()
+
+    # Clustering options and processing
+    st.sidebar.subheader("Clustering options")
+    features = st.sidebar.multiselect("Select numeric features for clustering", numeric_cols, default=numeric_cols[:2])
+
+    n_clusters = st.sidebar.slider("Number of clusters (k)", 2, 10, 4)
+
+    if len(features) >= 2:
+        X = df[features].dropna()
+
+        # 3. Scaling
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        # 4. K-Means
+        kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init=5)
+        clusters = kmeans.fit_predict(X_scaled)
+
+        # 5. Attach cluster labels
+        df_clusters = df.loc[X.index].copy()
+        df_clusters["cluster"] = clusters
+
+        st.subheader("Clustered Data (preview)")
+        st.dataframe(df_clusters.head())
+
+        def spinner(
+        text: str = "In progress...",
+        *,
+         show_time: bool = False,
+         _cache: bool = False):
+    
+    # 6. 2D visualization
+         x_feature = st.selectbox("X-axis feature", features, index=0)
+         y_feature = st.selectbox("Y-axis feature", features, index=1 )#if len(features) > 1 else 0)
+
+         fig, ax = plt.subplots(figsize=(10,8))
+         scatter = ax.scatter(df_clusters[x_feature], df_clusters[y_feature], c=df_clusters["cluster"], cmap="tab10", edgecolor="k", s=100)
+         ax.set_xlabel(x_feature)
+         ax.set_ylabel(y_feature)
+         ax.set_title("Customer Segments")
+         plt.colorbar(scatter, ax=ax, label="Cluster")
+         st.pyplot(fig)
+        spinner()
+        # 7. Segment summary
+        st.subheader("Cluster Summary")
+        summary = df_clusters.groupby("cluster")[features].mean()#.round(2)
+        st.dataframe(summary)
+    else:
+        st.warning("Select at least 2 features for visualization.")
+else:
+ st.info("Upload a CSV file with customer data to start.")
